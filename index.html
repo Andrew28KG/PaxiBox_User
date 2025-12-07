@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaxiBox - Serial Number Input</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>PaxiBox</h1>
+            <p class="subtitle">Enter Serial Number</p>
+            
+            <form id="serialForm">
+                <div class="form-group">
+                    <label for="serialNumber">Serial Number</label>
+                    <input 
+                        type="text" 
+                        id="serialNumber" 
+                        name="serialNumber" 
+                        placeholder="Enter box serial number"
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                
+                <button type="submit" id="submitBtn" class="submit-btn">
+                    <span class="btn-text">Submit</span>
+                    <span class="btn-loader" style="display: none;">⏳</span>
+                </button>
+            </form>
+            
+            <div id="message" class="message"></div>
+        </div>
+    </div>
+    
+    <script type="module" src="script.js"></script>
+</body>
+</html>
+
