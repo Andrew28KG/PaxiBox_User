@@ -3,39 +3,307 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PaxiBox - Serial Number Input</title>
-    <link rel="stylesheet" href="style.css">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>PaxiBox | Smartbox UI</title>
+    <link rel="stylesheet" href="style.css?v=smartbox-ui-1">
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <h1>PaxiBox</h1>
-            <p class="subtitle">Enter Serial Number</p>
-            
-            <form id="serialForm">
-                <div class="form-group">
-                    <label for="serialNumber">Serial Number</label>
-                    <input 
-                        type="text" 
-                        id="serialNumber" 
-                        name="serialNumber" 
-                        placeholder="Enter box serial number"
-                        required
-                        autocomplete="off"
-                    >
-                </div>
-                
-                <button type="submit" id="submitBtn" class="submit-btn">
-                    <span class="btn-text">Submit</span>
-                    <span class="btn-loader" style="display: none;">⏳</span>
+    <div class="app-shell">
+        <header class="topbar topbar--hidden" id="topbar">
+            <div class="topbar-left">
+                <button class="back-btn" id="backToLanding" aria-label="Back to landing page">
+                    <span class="icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M15 19 8 12l7-7"></path>
+                        </svg>
+                    </span>
+                    <span class="label">Back</span>
                 </button>
-            </form>
-            
-            <div id="message" class="message"></div>
+                <div class="brand">
+                    <div class="logo-dot"></div>
+                    <span>PaxiBox</span>
+                </div>
+            </div>
+            <nav class="nav-icons">
+                <button class="nav-btn active" data-target="dashboard" aria-label="Dashboard">
+                    <span class="icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <rect x="3" y="10" width="4" height="10" rx="1.2"></rect>
+                            <rect x="10" y="4" width="4" height="16" rx="1.2"></rect>
+                            <rect x="17" y="13" width="4" height="7" rx="1.2"></rect>
+                        </svg>
+                    </span>
+                    <span class="label">Dashboard</span>
+                </button>
+                <button class="nav-btn" data-target="packages" aria-label="Packages">
+                    <span class="icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Z"></path>
+                            <path d="M4 7.5v9l8 4.5 8-4.5v-9"></path>
+                            <path d="M12 12v9"></path>
+                        </svg>
+                    </span>
+                    <span class="label">Packages</span>
+                </button>
+                <button class="nav-btn" data-target="add-package" aria-label="Add Package">
+                    <span class="icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 5v14"></path>
+                            <path d="M5 12h14"></path>
+                        </svg>
+                    </span>
+                    <span class="label">Add Package</span>
+                </button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Landing Page -->
+            <section id="landing" class="page active">
+                <div class="landing-wrap">
+                    <div class="brand-banner">PaxiBox</div>
+                    <div class="landing-grid">
+                        <div class="hero-copy">
+                            <h1>Track, monitor, and manage every package in one place.</h1>
+                        </div>
+
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <div>
+                                    <h2>Enter Tracking Number</h2>
+                                </div>
+                            </div>
+
+                            <form id="serialForm" class="stacked-form">
+                                <label class="input-label" for="serialNumber">Tracking / Serial Number</label>
+                                <div class="input-wrap">
+                                    <input 
+                                        type="text" 
+                                        id="serialNumber" 
+                                        name="serialNumber" 
+                                        placeholder="e.g. PBX-98423"
+                                        required
+                                        autocomplete="off"
+                                        inputmode="text"
+                                    >
+                                </div>
+                                <button type="submit" id="submitBtn" class="button primary">
+                                    <span class="btn-text">Check Number</span>
+                                    <span class="btn-loader" style="display: none;">⏳</span>
+                                </button>
+                            </form>
+
+                            <div id="message" class="message"></div>
+
+                            <div class="cta-footer">
+                                <button type="button" id="checkBtn" class="button ghost" data-target="packages">Check Package</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- User Dashboard -->
+            <section id="dashboard" class="page">
+                <div class="section-header">
+                    <div></div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card progress-card">
+                        <div class="card-header spaced">
+                            <div>
+                                <h3>Capacity</h3>
+                            </div>
+                        </div>
+                        <div class="progress-wrap">
+                            <div class="capacity-meter">
+                                <div class="capacity-bar" data-capacity-bar>
+                                    <div class="capacity-fill" data-capacity-fill></div>
+                                </div>
+                                <div class="capacity-meta">
+                                    <span class="progress-value" data-capacity-value>0%</span>
+                                    <span class="progress-label">Current load</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card stat-card">
+                        <div class="card-header spaced">
+                            <div>
+                                <h3>Load Overview</h3>
+                            </div>
+                        </div>
+                        <div class="stat-body">
+                            <p class="stat-value" data-weight-value>0 kg</p>
+                            <p class="stat-sub">Updated moments ago</p>
+                            <div class="pill subtle" data-weight-status>Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="card highlight-card">
+                        <div>
+                            <p class="card-kicker">Need to ship?</p>
+                            <h3>Use your PaxiBox safely</h3>
+                            <p class="card-subtitle">
+                                Keep capacity under 90% and weight under safe thresholds for best performance.
+                            </p>
+                        </div>
+                        <button class="button text" data-target="packages">View Packages</button>
+                    </div>
+
+                    <div class="card action-card">
+                        <div class="card-header spaced">
+                            <div>
+                                <p class="card-kicker">Smartbox</p>
+                                <h3>Open your box</h3>
+                                <p class="card-subtitle">Send a remote open command to the PaxiBox.</p>
+                            </div>
+                        </div>
+                        <div class="stat-body">
+                            <p class="stat-value">Access control</p>
+                            <p class="stat-sub">Make sure it is safe before opening.</p>
+                            <button class="button primary" id="openSmartboxBtn">Open Smartbox</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Package Page -->
+            <section id="packages" class="page">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Package Center</p>
+                        <h2>Your Packages</h2>
+                        <p class="card-subtitle">Tap any card to view the latest status.</p>
+                    </div>
+                </div>
+
+                <div class="packages-grid" id="packagesList">
+                    <!-- Cards injected via JS -->
+                </div>
+            </section>
+
+            <!-- Add Package Page -->
+            <section id="add-package" class="page">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Add Package</p>
+                        <h2>Create a new package entry</h2>
+                    </div>
+                </div>
+
+                <div class="card form-card">
+                    <div class="card-header">
+                        <div>
+                            <p class="card-kicker">New Package</p>
+                            <h3>Package details</h3>
+                        </div>
+                    </div>
+
+                        <form id="addPackageForm" class="stacked-form">
+                        <div class="input-group">
+                            <label class="input-label" for="pkgTitle">Title</label>
+                            <div class="input-wrap">
+                                <input type="text" id="pkgTitle" name="pkgTitle" placeholder="Package A" required autocomplete="off">
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-label" for="pkgStatus">Status</label>
+                            <div class="input-wrap">
+                                <input type="text" id="pkgStatus" name="pkgStatus" placeholder="Arrived at 14:30" required autocomplete="off">
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                                <label class="input-label" for="pkgTracking">Serial Number</label>
+                            <div class="input-wrap">
+                                    <input type="text" id="pkgTracking" name="pkgTracking" placeholder="PBX-123-456" required autocomplete="off">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="button primary">Add Package</button>
+                    </form>
+
+                    <div class="message" id="addPkgMessage" style="display:none;"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="pinModal" aria-hidden="true">
+        <div class="modal">
+            <button class="modal-close" id="pinClose" aria-label="Close PIN prompt">×</button>
+            <div class="modal-header">
+                <div>
+                    <p class="eyebrow">Security Check</p>
+                    <h3>Enter PIN to continue</h3>
+                    <p class="card-subtitle">Authentication is required before viewing packages.</p>
+                </div>
+            </div>
+            <div class="modal-body">
+                <form id="pinForm" class="stacked-form">
+                    <label class="input-label" for="pinInput">PIN</label>
+                    <div class="input-wrap">
+                        <input 
+                            type="password" 
+                            id="pinInput" 
+                            name="pinInput" 
+                            placeholder="••••" 
+                            inputmode="numeric" 
+                            pattern="[0-9]*"
+                            required 
+                            autocomplete="one-time-code"
+                        >
+                    </div>
+                    <div class="message error" id="pinError" style="display:none;"></div>
+                    <div class="cta-footer">
+                        <button type="button" class="button ghost" id="pinCancel">Cancel</button>
+                        <button type="submit" class="button primary" id="pinConfirm">Confirm</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-    
-    <script type="module" src="script.js"></script>
+
+    <div class="modal-overlay" id="packageModal" aria-hidden="true">
+        <div class="modal">
+            <button class="modal-close" id="modalClose" aria-label="Close details">×</button>
+            <div class="modal-header">
+                <div>
+                    <p class="eyebrow">Package Detail</p>
+                    <h3 id="modalTitle"></h3>
+                    <p class="card-subtitle" id="modalStatus"></p>
+                </div>
+                <div class="modal-meta">
+                    <div>
+                        <p class="meta-label">Serial</p>
+                        <p class="meta-value" id="modalSerial"></p>
+                    </div>
+                    <div>
+                        <p class="meta-label">Serial Number</p>
+                        <p class="meta-value" id="modalTracking"></p>
+                    </div>
+                    <div>
+                        <p class="meta-label">Arrived</p>
+                        <p class="meta-value" id="modalArrived"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-hero" id="modalHero"></div>
+                <div class="modal-gallery" id="modalGallery"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+    <script type="module" src="script.js?v=smartbox-ui-2"></script>
 </body>
 </html>
 
