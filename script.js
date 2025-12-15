@@ -70,9 +70,9 @@ const openSmartboxBtn = document.getElementById('openSmartboxBtn');
 
 // Mock dashboard data
 const dashboardData = {
-  capacity: 75,
-  weightKg: 12.5,
-  maxWeight: 18,
+  capacity: 0,
+  weightKg: 0,
+  maxWeight: 25, // safe default, updated as needed
   lastMotion: 'No motion yet',
   doors: {
     front: 'Locked',
@@ -86,6 +86,7 @@ const dashboardData = {
 
 let packagesData = [];
 const PACKAGES_PATH = '/paxibox/packages';
+const SYSTEM_PATH = '/paxibox/system';
 const defaultPackageImage = "https://images.unsplash.com/photo-1523475472560-d2df97ec485c?auto=format&fit=crop&w=800&q=80";
 
 // Navigation
@@ -235,7 +236,7 @@ function openPackageModal(pkg) {
   modalSerial.textContent = pkg.serialNumber || pkg.tracking || '—';
   modalTracking.textContent = pkg.serialNumber || pkg.tracking || '—';
   modalArrived.textContent = pkg.arrivedAt || '—';
-  modalHero.style.backgroundImage = `url('${pkg.image}')`;
+  modalHero.style.backgroundImage = `url('${pkg.image || defaultPackageImage}')`;
 
   modalGallery.innerHTML = '';
   (pkg.courierPhotos || []).slice(0, 3).forEach((src) => {
@@ -255,11 +256,31 @@ function normalizePackages(raw) {
   return Object.entries(raw)
     .map(([key, value]) => {
       const v = value || {};
-      const photos = Array.isArray(v.courierPhotos)
-        ? v.courierPhotos
-        : v.courierPhotos && typeof v.courierPhotos === 'object'
-          ? Object.values(v.courierPhotos)
-          : [];
+      // Build photo list from saved Firebase images or legacy courierPhotos
+      let photos = [];
+
+      // New structure from ESP32-CAM: images/image1 = { data: <base64>, timestamp }
+      if (v.images && typeof v.images === 'object') {
+        photos = Object.values(v.images)
+          .map((img) => {
+            if (!img) return null;
+            if (typeof img === 'string') {
+              // Already a URL or data URI
+              return img;
+            }
+            if (img.data) {
+              return `data:image/jpeg;base64,${img.data}`;
+            }
+            return null;
+          })
+          .filter(Boolean);
+      } else if (Array.isArray(v.courierPhotos)) {
+        // Legacy array of URLs
+        photos = v.courierPhotos;
+      } else if (v.courierPhotos && typeof v.courierPhotos === 'object') {
+        // Legacy object of URLs
+        photos = Object.values(v.courierPhotos).filter(Boolean);
+      }
 
       return {
         id: key,
@@ -267,10 +288,13 @@ function normalizePackages(raw) {
         status: v.status || '—',
         tracking: v.tracking || v.serialNumber || key,
         serialNumber: v.serialNumber || v.tracking || key,
-        arrivedAt: v.arrivedAt || v.arrived || '—',
-        image: v.image || defaultPackageImage,
+        arrivedAt: v.arrivedAt || v.deliveredAt || v.completedAt || v.arrived || '—',
+        // Use first saved image as the hero if available
+        image: (photos && photos.length ? photos[0] : v.image) || defaultPackageImage,
         courierPhotos: photos,
-        createdAt: v.createdAt || 0
+        createdAt: v.createdAt || 0,
+        fullnessPercent: typeof v.fullness_percent === 'number' ? v.fullness_percent : null,
+        weight_g: typeof v.weight_g === 'number' ? v.weight_g : null
       };
     })
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -285,6 +309,18 @@ function startPackagesListener() {
       const raw = snapshot.exists() ? snapshot.val() : null;
       packagesData = normalizePackages(raw);
       renderPackages();
+
+      // Update dashboard metrics from the most recent package
+      const latest = packagesData[0];
+      if (latest) {
+        if (typeof latest.fullnessPercent === 'number') {
+          dashboardData.capacity = latest.fullnessPercent;
+        }
+        if (typeof latest.weight_g === 'number') {
+          dashboardData.weightKg = latest.weight_g / 1000;
+        }
+      }
+      hydrateDashboard();
     },
     (error) => {
       console.error('Failed to load packages', error);
@@ -401,10 +437,12 @@ async function handleOpenSmartbox() {
   setOpenSmartboxLoading(true);
 
   try {
-    // TODO: Replace with a real API call to trigger the hardware relay.
-    showToast('Opening smartbox', 'Sending open command...', 'info');
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    showToast('Smartbox opened', 'Your PaxiBox should now be unlocked.', 'success');
+    // Trigger Firebase flag that backend/bridge can listen to for MQTT command
+    const cmdRef = ref(database, '/paxibox/system/userOpenRequest');
+    await set(cmdRef, {
+      requestedAt: Date.now()
+    });
+    showToast('Opening smartbox', 'Request sent to open your PaxiBox.', 'success');
   } catch (err) {
     console.error('Failed to open smartbox', err);
     showToast('Open failed', 'Could not open the smartbox right now.', 'error');
@@ -440,20 +478,16 @@ async function addPackageCard(evt) {
   setAddPackageLoading(true);
 
   try {
-    const packagesRef = ref(database, PACKAGES_PATH);
-    const newPkgRef = push(packagesRef);
+    // Use the serial number as the package ID so it matches the ESP32 "resi"
+    const id = tracking.trim();
+    const pkgRef = ref(database, `${PACKAGES_PATH}/${id}`);
 
-    await set(newPkgRef, {
+    await set(pkgRef, {
       name: title,
       serialNumber: tracking,
       tracking,
-      status,
-      arrivedAt: new Date().toISOString(),
-      image: defaultPackageImage,
-      courierPhotos: [
-        "https://images.unsplash.com/photo-1515162305280-d9b63bdf0f94?auto=format&fit=crop&w=600&q=80",
-        "https://images.unsplash.com/photo-1506617420156-8e4536971650?auto=format&fit=crop&w=600&q=80"
-      ],
+      status: status || 'pending',
+      createdAt: Date.now(),
       createdAt: Date.now()
     });
 
@@ -565,11 +599,44 @@ async function findPackageBySerial(serialNumber) {
   ) || null;
 }
 
+// Listen to /paxibox/system for live dashboard state (doors, last update, etc.)
+function startSystemListener() {
+  const systemRef = ref(database, SYSTEM_PATH);
+
+  onValue(
+    systemRef,
+    (snapshot) => {
+      const v = snapshot.exists() ? snapshot.val() || {} : {};
+
+      // Doors: map courierActive/userActive to front/rear door states
+      const courierActive = !!v.courierActive;
+      const userActive = !!v.userActive;
+      dashboardData.doors.front = courierActive ? 'Unlocked' : 'Locked';
+      dashboardData.doors.rear = userActive ? 'Unlocked' : 'Locked';
+
+      // Last motion/update based on lastUpdate timestamp (millis from ESP32)
+      if (typeof v.lastUpdate === 'number') {
+        const ts = v.lastUpdate;
+        const date = new Date(ts);
+        dashboardData.lastMotion = isNaN(date.getTime())
+          ? 'Recently updated'
+          : date.toLocaleString();
+      }
+
+      hydrateDashboard();
+    },
+    (error) => {
+      console.error('Failed to load system status', error);
+    }
+  );
+}
+
 // Init
 showPage('landing', { skipScroll: true });
 hydrateDashboard();
 renderPackages();
 startPackagesListener();
+startSystemListener();
 
 if (addPackageForm) {
   addPackageForm.addEventListener('submit', addPackageCard);
