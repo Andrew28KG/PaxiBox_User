@@ -3,6 +3,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
 import { getDatabase, ref, push, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
+// MQTT Configuration (using WebSocket)
+const MQTT_CONFIG = {
+  broker: 'ws://10.137.152.111:9001', // WebSocket port (default Mosquitto WS port is 9001)
+  topics: {
+    esp32camCommand: 'paxibox/esp32cam/command'
+  }
+};
+
+let mqttClient = null;
+let mqttConnected = false;
+let currentPackageResi = null; // Track current package resi for door unlock
+
 // Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCUNxHKkWEc-HQG6ibe8kEtaRFc1eRmRFQ",
@@ -431,23 +443,150 @@ function setOpenSmartboxLoading(loading) {
   openSmartboxBtn.textContent = loading ? 'Opening...' : 'Open Smartbox';
 }
 
+// Initialize MQTT client (loads MQTT.js from CDN)
+async function initMQTT() {
+  try {
+    // Load MQTT.js from CDN (non-module script)
+    if (typeof window.mqtt === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/mqtt@5/dist/mqtt.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load MQTT.js'));
+        document.head.appendChild(script);
+      });
+    }
+
+    if (typeof window.mqtt === 'undefined') {
+      console.warn('MQTT.js not available. Door unlock will use Firebase fallback.');
+      return;
+    }
+
+    connectMQTT();
+  } catch (err) {
+    console.error('Failed to load MQTT.js:', err);
+  }
+}
+
+function connectMQTT() {
+  if (typeof window.mqtt === 'undefined') {
+    console.warn('MQTT.js not available. Door unlock will use Firebase fallback.');
+    return;
+  }
+
+  try {
+    mqttClient = window.mqtt.connect(MQTT_CONFIG.broker, {
+      clientId: 'paxibox-user-' + Math.random().toString(16).substr(2, 8),
+      reconnectPeriod: 5000,
+      connectTimeout: 10000
+    });
+
+    mqttClient.on('connect', () => {
+      mqttConnected = true;
+      console.log('MQTT connected to', MQTT_CONFIG.broker);
+    });
+
+    mqttClient.on('error', (err) => {
+      console.error('MQTT error:', err);
+      mqttConnected = false;
+    });
+
+    mqttClient.on('close', () => {
+      mqttConnected = false;
+      console.log('MQTT disconnected');
+    });
+  } catch (err) {
+    console.error('Failed to initialize MQTT:', err);
+  }
+}
+
 async function handleOpenSmartbox() {
   if (!openSmartboxBtn) return;
 
   setOpenSmartboxLoading(true);
 
   try {
-    // Trigger Firebase flag that backend/bridge can listen to for MQTT command
-    const cmdRef = ref(database, '/paxibox/system/userOpenRequest');
-    await set(cmdRef, {
-      requestedAt: Date.now()
-    });
-    showToast('Opening smartbox', 'Request sent to open your PaxiBox.', 'success');
+    // Get PIN from Firebase
+    let pin = null;
+    try {
+      const pinRef = ref(database, '/paxibox/pin');
+      const pinSnapshot = await get(pinRef);
+      if (pinSnapshot.exists()) {
+        const pinValue = pinSnapshot.val();
+        pin = (pinValue && typeof pinValue === 'object' && 'pin' in pinValue) ? pinValue.pin : pinValue;
+      }
+    } catch (err) {
+      console.warn('Could not fetch PIN:', err);
+    }
+
+    // Get current package resi from system/currentPackage or latest package
+    let resi = currentPackageResi;
+    if (!resi) {
+      try {
+        const currentPkgRef = ref(database, '/paxibox/system/currentPackage');
+        const currentPkgSnapshot = await get(currentPkgRef);
+        if (currentPkgSnapshot.exists()) {
+          resi = currentPkgSnapshot.val();
+        }
+      } catch (err) {
+        console.warn('Could not fetch current package:', err);
+      }
+    }
+
+    // Fallback to latest package if no current package
+    if (!resi && packagesData.length > 0) {
+      const latest = packagesData.find(p => p.status === 'delivered' || p.status === 'in_progress');
+      if (latest) {
+        resi = latest.serialNumber || latest.tracking;
+      }
+    }
+
+    if (!resi) {
+      showToast('No package found', 'Please ensure a package is active or delivered.', 'error');
+      return;
+    }
+
+    // Send MQTT command if connected, otherwise use Firebase fallback
+    if (mqttConnected && mqttClient) {
+      const command = JSON.stringify({
+        action: 'unlock_user_door',
+        resi: resi,
+        pin: pin || ''
+      });
+
+      mqttClient.publish(MQTT_CONFIG.topics.esp32camCommand, command, { qos: 1 }, (err) => {
+        if (err) {
+          console.error('Failed to publish MQTT command:', err);
+          // Fallback to Firebase
+          sendFirebaseUnlockRequest(resi);
+        } else {
+          console.log('MQTT unlock command sent:', command);
+          showToast('Opening smartbox', 'Door unlock command sent.', 'success');
+        }
+      });
+    } else {
+      // Firebase fallback
+      await sendFirebaseUnlockRequest(resi);
+    }
   } catch (err) {
     console.error('Failed to open smartbox', err);
     showToast('Open failed', 'Could not open the smartbox right now.', 'error');
   } finally {
     setOpenSmartboxLoading(false);
+  }
+}
+
+async function sendFirebaseUnlockRequest(resi) {
+  try {
+    const cmdRef = ref(database, '/paxibox/system/userOpenRequest');
+    await set(cmdRef, {
+      resi: resi,
+      requestedAt: Date.now()
+    });
+    showToast('Opening smartbox', 'Request sent (Firebase fallback).', 'success');
+  } catch (err) {
+    console.error('Firebase fallback failed:', err);
+    throw err;
   }
 }
 
@@ -614,13 +753,20 @@ function startSystemListener() {
       dashboardData.doors.front = courierActive ? 'Unlocked' : 'Locked';
       dashboardData.doors.rear = userActive ? 'Unlocked' : 'Locked';
 
+      // Track current package resi for door unlock
+      if (v.currentPackage && typeof v.currentPackage === 'string') {
+        currentPackageResi = v.currentPackage;
+      }
+
       // Last motion/update based on lastUpdate timestamp (millis from ESP32)
       if (typeof v.lastUpdate === 'number') {
         const ts = v.lastUpdate;
-        const date = new Date(ts);
-        dashboardData.lastMotion = isNaN(date.getTime())
+        // Convert millis to Date (ESP32 millis() is relative to boot, so approximate)
+        const now = Date.now();
+        const approxDate = new Date(now - (now % 86400000) + (ts % 86400000)); // Approximate to today
+        dashboardData.lastMotion = isNaN(approxDate.getTime())
           ? 'Recently updated'
-          : date.toLocaleString();
+          : approxDate.toLocaleTimeString();
       }
 
       hydrateDashboard();
@@ -637,6 +783,10 @@ hydrateDashboard();
 renderPackages();
 startPackagesListener();
 startSystemListener();
+// Initialize MQTT after a short delay to ensure Firebase is ready
+setTimeout(() => {
+  initMQTT();
+}, 1500);
 
 if (addPackageForm) {
   addPackageForm.addEventListener('submit', addPackageCard);
