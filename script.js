@@ -249,6 +249,33 @@ function openPackageModal(pkg) {
   packageModal.setAttribute('aria-hidden', 'false');
 }
 
+function formatArrivedTimestamp(value) {
+  if (!value) return '—';
+
+  try {
+    // Support both numeric timestamps and ISO/date strings
+    const date =
+      typeof value === 'number' || typeof value === 'bigint'
+        ? new Date(Number(value))
+        : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+
+    // Example: "15 Dec 2025, 14:32"
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return String(value);
+  }
+}
+
 function normalizePackages(raw) {
   if (!raw || typeof raw !== 'object') return [];
 
@@ -267,7 +294,7 @@ function normalizePackages(raw) {
         status: v.status || '—',
         tracking: v.tracking || v.serialNumber || key,
         serialNumber: v.serialNumber || v.tracking || key,
-        arrivedAt: v.arrivedAt || v.arrived || '—',
+        arrivedAt: formatArrivedTimestamp(v.arrivedAt || v.arrived),
         image: v.image || defaultPackageImage,
         courierPhotos: photos,
         createdAt: v.createdAt || 0
