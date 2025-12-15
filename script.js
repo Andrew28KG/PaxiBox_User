@@ -56,7 +56,6 @@ const modalTitle = document.getElementById('modalTitle');
 const modalStatus = document.getElementById('modalStatus');
 const modalSerial = document.getElementById('modalSerial');
 const modalTracking = document.getElementById('modalTracking');
-const modalArrived = document.getElementById('modalArrived');
 const modalHero = document.getElementById('modalHero');
 const modalGallery = document.getElementById('modalGallery');
 const pinModal = document.getElementById('pinModal');
@@ -225,7 +224,7 @@ function renderPackages() {
 }
 
 function openPackageModal(pkg) {
-  if (!packageModal || !modalTitle || !modalStatus || !modalSerial || !modalTracking || !modalArrived || !modalHero || !modalGallery) {
+  if (!packageModal || !modalTitle || !modalStatus || !modalSerial || !modalTracking || !modalHero || !modalGallery) {
     showToast('Unavailable', 'Cannot open package details right now.', 'error');
     return;
   }
@@ -234,7 +233,6 @@ function openPackageModal(pkg) {
   modalStatus.textContent = pkg.status;
   modalSerial.textContent = pkg.serialNumber || pkg.tracking || '—';
   modalTracking.textContent = pkg.serialNumber || pkg.tracking || '—';
-  modalArrived.textContent = pkg.arrivedAt || '—';
   modalHero.style.backgroundImage = `url('${pkg.image}')`;
 
   modalGallery.innerHTML = '';
