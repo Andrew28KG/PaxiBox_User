@@ -3,16 +3,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
 import { getDatabase, ref, push, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// MQTT Configuration (using WebSocket)
-const MQTT_CONFIG = {
-  broker: 'ws://10.137.152.111:9001', // WebSocket port (default Mosquitto WS port is 9001)
-  topics: {
-    esp32camCommand: 'paxibox/esp32cam/command'
-  }
-};
-
-let mqttClient = null;
-let mqttConnected = false;
 let currentPackageResi = null; // Track current package resi for door unlock
 
 // Firebase configuration
@@ -443,63 +433,6 @@ function setOpenSmartboxLoading(loading) {
   openSmartboxBtn.textContent = loading ? 'Opening...' : 'Open Smartbox';
 }
 
-// Initialize MQTT client (loads MQTT.js from CDN)
-async function initMQTT() {
-  try {
-    // Load MQTT.js from CDN (non-module script)
-    if (typeof window.mqtt === 'undefined') {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/mqtt@5/dist/mqtt.min.js';
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Failed to load MQTT.js'));
-        document.head.appendChild(script);
-      });
-    }
-
-    if (typeof window.mqtt === 'undefined') {
-      console.warn('MQTT.js not available. Door unlock will use Firebase fallback.');
-      return;
-    }
-
-    connectMQTT();
-  } catch (err) {
-    console.error('Failed to load MQTT.js:', err);
-  }
-}
-
-function connectMQTT() {
-  if (typeof window.mqtt === 'undefined') {
-    console.warn('MQTT.js not available. Door unlock will use Firebase fallback.');
-    return;
-  }
-
-  try {
-    mqttClient = window.mqtt.connect(MQTT_CONFIG.broker, {
-      clientId: 'paxibox-user-' + Math.random().toString(16).substr(2, 8),
-      reconnectPeriod: 5000,
-      connectTimeout: 10000
-    });
-
-    mqttClient.on('connect', () => {
-      mqttConnected = true;
-      console.log('MQTT connected to', MQTT_CONFIG.broker);
-    });
-
-    mqttClient.on('error', (err) => {
-      console.error('MQTT error:', err);
-      mqttConnected = false;
-    });
-
-    mqttClient.on('close', () => {
-      mqttConnected = false;
-      console.log('MQTT disconnected');
-    });
-  } catch (err) {
-    console.error('Failed to initialize MQTT:', err);
-  }
-}
-
 async function handleOpenSmartbox() {
   if (!openSmartboxBtn) return;
 
@@ -546,47 +479,21 @@ async function handleOpenSmartbox() {
       return;
     }
 
-    // Send MQTT command if connected, otherwise use Firebase fallback
-    if (mqttConnected && mqttClient) {
-      const command = JSON.stringify({
-        action: 'unlock_user_door',
-        resi: resi,
-        pin: pin || ''
-      });
-
-      mqttClient.publish(MQTT_CONFIG.topics.esp32camCommand, command, { qos: 1 }, (err) => {
-        if (err) {
-          console.error('Failed to publish MQTT command:', err);
-          // Fallback to Firebase
-          sendFirebaseUnlockRequest(resi);
-        } else {
-          console.log('MQTT unlock command sent:', command);
-          showToast('Opening smartbox', 'Door unlock command sent.', 'success');
-        }
-      });
-    } else {
-      // Firebase fallback
-      await sendFirebaseUnlockRequest(resi);
-    }
+    // Write unlock request to Firebase (bridge will forward to MQTT)
+    const cmdRef = ref(database, '/paxibox/system/userOpenRequest');
+    await set(cmdRef, {
+      resi: resi,
+      pin: pin || '',
+      requestedAt: Date.now()
+    });
+    
+    console.log('User unlock request written to Firebase:', { resi, pin });
+    showToast('Opening smartbox', 'Door unlock request sent.', 'success');
   } catch (err) {
     console.error('Failed to open smartbox', err);
     showToast('Open failed', 'Could not open the smartbox right now.', 'error');
   } finally {
     setOpenSmartboxLoading(false);
-  }
-}
-
-async function sendFirebaseUnlockRequest(resi) {
-  try {
-    const cmdRef = ref(database, '/paxibox/system/userOpenRequest');
-    await set(cmdRef, {
-      resi: resi,
-      requestedAt: Date.now()
-    });
-    showToast('Opening smartbox', 'Request sent (Firebase fallback).', 'success');
-  } catch (err) {
-    console.error('Firebase fallback failed:', err);
-    throw err;
   }
 }
 
@@ -783,10 +690,6 @@ hydrateDashboard();
 renderPackages();
 startPackagesListener();
 startSystemListener();
-// Initialize MQTT after a short delay to ensure Firebase is ready
-setTimeout(() => {
-  initMQTT();
-}, 1500);
 
 if (addPackageForm) {
   addPackageForm.addEventListener('submit', addPackageCard);
