@@ -39,6 +39,10 @@ const capacityValue = document.querySelector('[data-capacity-value]');
 const capacityPill = document.querySelector('[data-pill-state]');
 const weightValue = document.querySelector('[data-weight-value]');
 const weightStatus = document.querySelector('[data-weight-status]');
+const lastMotionEl = document.querySelector('[data-last-motion]');
+const doorStatusEls = document.querySelectorAll('[data-door-status]');
+const vibrationLatestEl = document.querySelector('[data-vibration-latest]');
+const vibrationMaxEl = document.querySelector('[data-vibration-max]');
 const packagesList = document.getElementById('packagesList');
 const addPackageForm = document.getElementById('addPackageForm');
 const addPkgMessage = document.getElementById('addPkgMessage');
@@ -68,7 +72,16 @@ const openSmartboxBtn = document.getElementById('openSmartboxBtn');
 const dashboardData = {
   capacity: 75,
   weightKg: 12.5,
-  maxWeight: 18
+  maxWeight: 18,
+  lastMotion: 'No motion yet',
+  doors: {
+    front: 'Locked',
+    rear: 'Locked'
+  },
+  vibration: {
+    latest: '0.00 g',
+    maxToday: '0.00 g'
+  }
 };
 
 let packagesData = [];
@@ -114,7 +127,7 @@ function getState(value) {
 }
 
 function hydrateDashboard() {
-  const { capacity, weightKg, maxWeight } = dashboardData;
+  const { capacity, weightKg, maxWeight, lastMotion, doors, vibration } = dashboardData;
   const state = getState(capacity);
 
   if (capacityBar && capacityFill) {
@@ -143,6 +156,27 @@ function hydrateDashboard() {
     const weightLabel = weightState === 'danger' ? 'Over limit' : weightState === 'warning' ? 'Close to limit' : 'Within limit';
     weightStatus.textContent = `${weightLabel} • ${utilization}% of ${maxWeight} kg`;
     weightStatus.dataset.state = weightState;
+  }
+
+  if (lastMotionEl) {
+    lastMotionEl.textContent = lastMotion || 'No motion yet';
+  }
+
+  if (doorStatusEls && doorStatusEls.length) {
+    doorStatusEls.forEach((el) => {
+      const key = el.dataset.doorStatus;
+      const value = doors && key in doors ? doors[key] : 'Unknown';
+      el.textContent = value;
+      el.dataset.state = value.toLowerCase() === 'locked' ? 'safe' : 'warning';
+    });
+  }
+
+  if (vibrationLatestEl && vibration) {
+    vibrationLatestEl.textContent = vibration.latest || '0.00 g';
+  }
+
+  if (vibrationMaxEl && vibration) {
+    vibrationMaxEl.textContent = `Highest today: ${vibration.maxToday || '0.00 g'}`;
   }
 }
 

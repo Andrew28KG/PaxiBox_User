@@ -144,6 +144,28 @@
                         </div>
                     </div>
 
+                    <div class="card stat-card">
+                        <div class="card-header spaced">
+                            <div>
+                                <h3>Security</h3>
+                            </div>
+                        </div>
+                        <div class="stat-body">
+                            <p class="stat-value" data-last-motion>—</p>
+                            <p class="stat-sub">Last motion detected</p>
+                            <div class="door-status-list">
+                                <div class="door-status-item">
+                                    <span class="door-label">Front door</span>
+                                    <span class="pill subtle" data-door-status="front">—</span>
+                                </div>
+                                <div class="door-status-item">
+                                    <span class="door-label">Rear door</span>
+                                    <span class="pill subtle" data-door-status="rear">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="card highlight-card">
                         <div>
                             <p class="card-kicker">Need to ship?</p>
@@ -164,10 +186,11 @@
                             </div>
                         </div>
                         <div class="stat-body">
-                            <p class="stat-value">Access control</p>
-                            <p class="stat-sub">Make sure it is safe before opening.</p>
-                            <button class="button primary" id="openSmartboxBtn">Open Smartbox</button>
+                            <p class="stat-value" data-vibration-latest>—</p>
+                            <p class="stat-sub">Latest vibration today</p>
+                            <div class="pill subtle" data-vibration-max>Highest today: —</div>
                         </div>
+                        <button class="button primary" id="openSmartboxBtn">Open Smartbox</button>
                     </div>
                 </div>
             </section>
