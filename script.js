@@ -139,6 +139,13 @@ function hydrateDashboard() {
     capacityBar.dataset.state = state;
   }
 
+  // Update weight display inside capacity bar
+  const capacityWeightEl = document.querySelector('[data-capacity-weight]');
+  if (capacityWeightEl) {
+    const safeWeight = Number.isFinite(weightKg) ? weightKg : 0;
+    capacityWeightEl.textContent = `${safeWeight.toFixed(1)} kg`;
+  }
+
   if (capacityValue) {
     const safeVal = Number.isFinite(capacity) ? capacity : 0;
     capacityValue.textContent = `${safeVal}%`;
