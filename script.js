@@ -137,13 +137,15 @@ function hydrateDashboard() {
     const clamped = Math.min(100, Math.max(0, capacity));
     capacityFill.style.height = `${clamped}%`;
     capacityBar.dataset.state = state;
-  }
-
-  // Update weight display inside capacity bar
-  const capacityWeightEl = document.querySelector('[data-capacity-weight]');
-  if (capacityWeightEl) {
-    const safeWeight = Number.isFinite(weightKg) ? weightKg : 0;
-    capacityWeightEl.textContent = `${safeWeight.toFixed(1)} kg`;
+    
+    // Update weight display inside capacity bar (only show if fill is tall enough)
+    const capacityWeightEl = document.querySelector('[data-capacity-weight]');
+    if (capacityWeightEl) {
+      const safeWeight = (Number.isFinite(weightKg) && weightKg >= 0) ? weightKg : 0;
+      capacityWeightEl.textContent = `${safeWeight.toFixed(1)} kg`;
+      // Show weight only if fill height is at least 15% for readability
+      capacityWeightEl.style.opacity = clamped >= 15 ? '1' : '0';
+    }
   }
 
   if (capacityValue) {
@@ -158,7 +160,8 @@ function hydrateDashboard() {
   }
 
   if (weightValue) {
-    weightValue.textContent = `${weightKg.toFixed(1)} kg`;
+    const displayWeight = (Number.isFinite(weightKg) && weightKg >= 0) ? weightKg : 0;
+    weightValue.textContent = `${displayWeight.toFixed(1)} kg`;
   }
 
   if (weightStatus) {
@@ -695,12 +698,12 @@ function startSystemListener() {
         console.log('Capacity updated from system.capacity to:', dashboardData.capacity);
       }
 
-      // Total box weight from system (mirrored from MQTT weight_g, already scaled by 0.016)
-      if (typeof v.weight_g === 'number') {
+      // Total box weight from system (mirrored from MQTT weight_g, in grams)
+      if (typeof v.weight_g === 'number' && v.weight_g >= 0) {
         dashboardData.weightKg = v.weight_g / 1000;  // Convert grams to kg for display
         console.log('Weight updated from system.weight_g to:', dashboardData.weightKg, 'kg');
       } else {
-        // Reset to 0 if weight_g is missing
+        // Reset to 0 if weight_g is missing or negative
         dashboardData.weightKg = 0;
       }
 
