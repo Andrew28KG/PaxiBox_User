@@ -667,7 +667,8 @@ function startSystemListener() {
         userActive: v.userActive,
         currentPackage: v.currentPackage,
         lastUpdate: v.lastUpdate,
-        capacity: v.capacity
+        capacity: v.capacity,
+        weight_g: v.weight_g
       });
 
       // Doors: map courierActive/userActive to front/rear door states
@@ -681,6 +682,12 @@ function startSystemListener() {
       if (typeof v.capacity === 'number') {
         dashboardData.capacity = v.capacity;
         console.log('Capacity updated from system.capacity to:', dashboardData.capacity);
+      }
+
+      // Total box weight from system (mirrored from MQTT weight_g, already scaled by 0.016)
+      if (typeof v.weight_g === 'number') {
+        dashboardData.weightKg = v.weight_g / 1000;  // Convert grams to kg for display
+        console.log('Weight updated from system.weight_g to:', dashboardData.weightKg, 'kg');
       }
 
       // Track current package resi for door unlock
