@@ -140,7 +140,8 @@ function hydrateDashboard() {
   }
 
   if (capacityValue) {
-    capacityValue.textContent = `${capacity}%`;
+    const safeVal = Number.isFinite(capacity) ? capacity : 0;
+    capacityValue.textContent = `${safeVal}%`;
   }
 
   if (capacityPill) {
@@ -168,7 +169,7 @@ function hydrateDashboard() {
   if (doorStatusEls && doorStatusEls.length) {
     doorStatusEls.forEach((el) => {
       const key = el.dataset.doorStatus;
-      const value = doors && key in doors ? doors[key] : 'Unknown';
+      const value = doors && key in doors ? doors[key] : 'Locked';
       el.textContent = value;
       el.dataset.state = value.toLowerCase() === 'locked' ? 'safe' : 'warning';
     });
@@ -305,22 +306,27 @@ function normalizePackages(raw) {
 function startPackagesListener() {
   const packagesRef = ref(database, PACKAGES_PATH);
 
+  console.log('Starting packages listener on:', PACKAGES_PATH);
+
   onValue(
     packagesRef,
     (snapshot) => {
+      console.log('Packages data received:', snapshot.exists() ? 'exists' : 'empty');
       const raw = snapshot.exists() ? snapshot.val() : null;
       packagesData = normalizePackages(raw);
+      console.log('Normalized packages count:', packagesData.length);
       renderPackages();
 
       // Update dashboard metrics from the most recent package
       const latest = packagesData[0];
       if (latest) {
-        if (typeof latest.fullnessPercent === 'number') {
-          dashboardData.capacity = latest.fullnessPercent;
-        }
-        if (typeof latest.weight_g === 'number') {
-          dashboardData.weightKg = latest.weight_g / 1000;
-        }
+        console.log('Latest package:', latest.serialNumber, 'fullness:', latest.fullnessPercent, 'weight:', latest.weight_g);
+        dashboardData.capacity = typeof latest.fullnessPercent === 'number' ? latest.fullnessPercent : 0;
+        dashboardData.weightKg = typeof latest.weight_g === 'number' ? latest.weight_g / 1000 : 0;
+      } else {
+        console.log('No packages found, using default dashboard values');
+        dashboardData.capacity = 0;
+        dashboardData.weightKg = 0;
       }
       hydrateDashboard();
     },
@@ -649,31 +655,44 @@ async function findPackageBySerial(serialNumber) {
 function startSystemListener() {
   const systemRef = ref(database, SYSTEM_PATH);
 
+  console.log('Starting system listener on:', SYSTEM_PATH);
+
   onValue(
     systemRef,
     (snapshot) => {
+      console.log('System data received:', snapshot.exists() ? 'exists' : 'empty');
       const v = snapshot.exists() ? snapshot.val() || {} : {};
+      console.log('System values:', {
+        courierActive: v.courierActive,
+        userActive: v.userActive,
+        currentPackage: v.currentPackage,
+        lastUpdate: v.lastUpdate
+      });
 
       // Doors: map courierActive/userActive to front/rear door states
       const courierActive = !!v.courierActive;
       const userActive = !!v.userActive;
       dashboardData.doors.front = courierActive ? 'Unlocked' : 'Locked';
       dashboardData.doors.rear = userActive ? 'Unlocked' : 'Locked';
+      console.log('Door states updated - Front:', dashboardData.doors.front, 'Rear:', dashboardData.doors.rear);
 
       // Track current package resi for door unlock
       if (v.currentPackage && typeof v.currentPackage === 'string') {
         currentPackageResi = v.currentPackage;
+        console.log('Current package resi set to:', currentPackageResi);
       }
 
       // Last motion/update based on lastUpdate timestamp (millis from ESP32)
       if (typeof v.lastUpdate === 'number') {
         const ts = v.lastUpdate;
-        // Convert millis to Date (ESP32 millis() is relative to boot, so approximate)
-        const now = Date.now();
-        const approxDate = new Date(now - (now % 86400000) + (ts % 86400000)); // Approximate to today
-        dashboardData.lastMotion = isNaN(approxDate.getTime())
+        // Display raw timestamp or relative
+        const dt = new Date(ts);
+        dashboardData.lastMotion = isNaN(dt.getTime())
           ? 'Recently updated'
-          : approxDate.toLocaleTimeString();
+          : dt.toLocaleString();
+        console.log('Last motion updated to:', dashboardData.lastMotion, '(raw:', ts, ')');
+      } else {
+        dashboardData.lastMotion = 'No updates yet';
       }
 
       hydrateDashboard();
