@@ -317,16 +317,20 @@ function startPackagesListener() {
       console.log('Normalized packages count:', packagesData.length);
       renderPackages();
 
-      // Update dashboard metrics from the most recent package
+      // Update dashboard metrics from the most recent package (only if system values aren't available)
+      // Note: Weight and capacity now come from /paxibox/system, not packages
+      // This is kept as fallback for capacity if system.capacity is not set
       const latest = packagesData[0];
       if (latest) {
         console.log('Latest package:', latest.serialNumber, 'fullness:', latest.fullnessPercent, 'weight:', latest.weight_g);
-        dashboardData.capacity = typeof latest.fullnessPercent === 'number' ? latest.fullnessPercent : 0;
-        dashboardData.weightKg = typeof latest.weight_g === 'number' ? latest.weight_g / 1000 : 0;
+        // Only update capacity from package if system.capacity hasn't been set yet
+        if (typeof dashboardData.capacity === 'undefined' || dashboardData.capacity === 0) {
+          dashboardData.capacity = typeof latest.fullnessPercent === 'number' ? latest.fullnessPercent : 0;
+        }
+        // Weight is now read from system.weight_g, not from packages
       } else {
         console.log('No packages found, using default dashboard values');
-        dashboardData.capacity = 0;
-        dashboardData.weightKg = 0;
+        // Don't reset capacity/weight here - let system listener handle it
       }
       hydrateDashboard();
     },
@@ -688,6 +692,19 @@ function startSystemListener() {
       if (typeof v.weight_g === 'number') {
         dashboardData.weightKg = v.weight_g / 1000;  // Convert grams to kg for display
         console.log('Weight updated from system.weight_g to:', dashboardData.weightKg, 'kg');
+      } else {
+        // Reset to 0 if weight_g is missing
+        dashboardData.weightKg = 0;
+      }
+
+      // Vibration data from system (ESP32-S3 sends 0/1, format for display)
+      if (typeof v.vibration === 'number') {
+        // Format vibration state as "X.XX g" for display
+        // If vibration = 1, show detected; if 0, show normal
+        dashboardData.vibration.latest = v.vibration === 1 ? 'Detected' : 'Normal';
+        // For maxToday, we could track max value, but for now just show current state
+        dashboardData.vibration.maxToday = dashboardData.vibration.latest;
+        console.log('Vibration updated from system.vibration to:', dashboardData.vibration.latest);
       }
 
       // Track current package resi for door unlock
