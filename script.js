@@ -666,7 +666,8 @@ function startSystemListener() {
         courierActive: v.courierActive,
         userActive: v.userActive,
         currentPackage: v.currentPackage,
-        lastUpdate: v.lastUpdate
+        lastUpdate: v.lastUpdate,
+        capacity: v.capacity
       });
 
       // Doors: map courierActive/userActive to front/rear door states
@@ -675,6 +676,12 @@ function startSystemListener() {
       dashboardData.doors.front = courierActive ? 'Unlocked' : 'Locked';
       dashboardData.doors.rear = userActive ? 'Unlocked' : 'Locked';
       console.log('Door states updated - Front:', dashboardData.doors.front, 'Rear:', dashboardData.doors.rear);
+
+      // Capacity from system (mirrored from MQTT fullness_percent)
+      if (typeof v.capacity === 'number') {
+        dashboardData.capacity = v.capacity;
+        console.log('Capacity updated from system.capacity to:', dashboardData.capacity);
+      }
 
       // Track current package resi for door unlock
       if (v.currentPackage && typeof v.currentPackage === 'string') {
